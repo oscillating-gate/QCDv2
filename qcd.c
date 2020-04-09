@@ -28,6 +28,7 @@
 #include <avr/eeprom.h>
 
 //#define DEBUG
+#define RESET_DOESNT_SHIFT_PHASE
 
 /********************
  * GLOBAL VARIABLES *
@@ -802,7 +803,17 @@ int main(void){
 		for (i=0;i<4;i++){
 			if (RESET(i)){
 				if (!reset_up[i]){
+#ifndef RESET_DOESNT_SHIFT_PHASE
 					IMMEDIATE_CLKOUT_OFF(i); //goes off for 10uS
+#endif
+
+#ifdef RESET_DOESNT_SHIFT_PHASE
+                  for (j=0;j<19;++j){
+                    if (cda[i][j]>1){
+                      num_pings_since_reset[i][j] = cda[i][j] - 1;
+                    }
+                  }
+#else
 					num_pings_since_reset[i][0]=0;num_pings_since_reset[i][1]=0;
 					num_pings_since_reset[i][2]=0;num_pings_since_reset[i][3]=0;
 					num_pings_since_reset[i][4]=0;num_pings_since_reset[i][5]=0;
@@ -813,11 +824,17 @@ int main(void){
 					num_pings_since_reset[i][14]=0;num_pings_since_reset[i][15]=0;
 					num_pings_since_reset[i][16]=0;num_pings_since_reset[i][17]=0;
 					num_pings_since_reset[i][18]=0;
-					
+#endif
+
+#ifndef RESET_DOESNT_SHIFT_PHASE
 					reset_offset_time[i]=resets[i]; //time elapsed since last ping
 					reset_now_flag[i]=1;
+#endif
 					reset_up[i]=1;
+
+#ifndef RESET_DOESNT_SHIFT_PHASE
 					ready_to_reset[i]=0;
+#endif
 				}
 			}	else {
 				reset_up[i]=0;
