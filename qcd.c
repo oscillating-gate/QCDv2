@@ -29,6 +29,7 @@
 
 //#define DEBUG
 #define RESET_DOESNT_SHIFT_PHASE
+#define UPPER_RESET_ALSO_RESET_LOWER
 
 /********************
  * GLOBAL VARIABLES *
@@ -113,7 +114,12 @@ uint8_t midpt_array[4][19];
 
 #define RESET_pins 0b11110000
 #define RESET_init DDRD &= ~(RESET_pins); PORTD &= ~(RESET_pins)
+
+#ifdef UPPER_RESET_ALSO_RESET_LOWER
+int RESET( int reset_index );
+#else
 #define RESET(x) (PIND & (1<<(x+4)))
+#endif
 
 #define PING_pins 0b00001111
 #define PING_init DDRD &= ~(PING_pins); PORTD &= ~(PING_pins)
@@ -1035,6 +1041,24 @@ int main(void){
 	} //main loop
 
 } //void main()
+
+
+#ifdef UPPER_RESET_ALSO_RESET_LOWER
+
+#define RESET_CHK(x) (PIND & (1<<(x+4)))
+
+int RESET( int reset_index )
+{
+	int i;
+	for ( i = 0; i <= reset_index; ++i )
+	{
+		if ( RESET_CHK( i ) ) return 1;
+	}
+
+	return 0;
+}
+
+#endif
 
 
 
