@@ -708,7 +708,7 @@ int main(void)
     uint8_t reset_now_flag[4] = { 0, 0, 0, 0 };
     uint8_t ready_to_reset[4] = { 1, 1, 1, 1 };
 
-    uint8_t num_pings_since_reset[4][19] = {
+    int8_t num_pings_since_reset[4][19] = {
         { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
         { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
         { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -841,28 +841,35 @@ int main(void)
                 if (!FREERUN && (get_tmr_reset(i) > (ping_time[i] << 1))) {
                     // incoming clock has stopped
                     divclk_time[i] = 0;
+
+                    // Reset channel on ping stop
+                    ready_to_reset[i] = 1;
+                    cli();
+                    tmr_clkout[i] = 0;
+                    sei();
+
 #ifndef RESET_DOESNT_SHIFT_PHASE
                     reset_offset_time[i] = 0;
 #endif
-                    num_pings_since_reset[i][i] = 0;
-                    num_pings_since_reset[i][1] = 0;
-                    num_pings_since_reset[i][2] = 0;
-                    num_pings_since_reset[i][3] = 0;
-                    num_pings_since_reset[i][4] = 0;
-                    num_pings_since_reset[i][5] = 0;
-                    num_pings_since_reset[i][6] = 0;
-                    num_pings_since_reset[i][7] = 0;
-                    num_pings_since_reset[i][8] = 0;
-                    num_pings_since_reset[i][9] = 0;
-                    num_pings_since_reset[i][10] = 0;
-                    num_pings_since_reset[i][11] = 0;
-                    num_pings_since_reset[i][12] = 0;
-                    num_pings_since_reset[i][13] = 0;
-                    num_pings_since_reset[i][14] = 0;
-                    num_pings_since_reset[i][15] = 0;
-                    num_pings_since_reset[i][16] = 0;
-                    num_pings_since_reset[i][17] = 0;
-                    num_pings_since_reset[i][18] = 0;
+                    num_pings_since_reset[i][i] = -1;
+                    num_pings_since_reset[i][1] = -1;
+                    num_pings_since_reset[i][2] = -1;
+                    num_pings_since_reset[i][3] = -1;
+                    num_pings_since_reset[i][4] = -1;
+                    num_pings_since_reset[i][5] = -1;
+                    num_pings_since_reset[i][6] = -1;
+                    num_pings_since_reset[i][7] = -1;
+                    num_pings_since_reset[i][8] = -1;
+                    num_pings_since_reset[i][9] = -1;
+                    num_pings_since_reset[i][10] = -1;
+                    num_pings_since_reset[i][11] = -1;
+                    num_pings_since_reset[i][12] = -1;
+                    num_pings_since_reset[i][13] = -1;
+                    num_pings_since_reset[i][14] = -1;
+                    num_pings_since_reset[i][15] = -1;
+                    num_pings_since_reset[i][16] = -1;
+                    num_pings_since_reset[i][17] = -1;
+                    num_pings_since_reset[i][18] = -1;
                 }
             }
         }
@@ -888,7 +895,9 @@ int main(void)
 #ifdef RESET_DOESNT_SHIFT_PHASE
                     for (j = 0; j < 19; ++j) {
                         if (cda[i][j] > 1) {
-                            num_pings_since_reset[i][j] = cda[i][j] - 1;
+                            if (!ready_to_reset[i]) {
+                                num_pings_since_reset[i][j] = cda[i][j] - 1;
+                            }
                         }
                     }
 #else
