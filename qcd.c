@@ -200,7 +200,6 @@ SIGNAL(TIMER0_OVF_vect)
 }
 
 uint8_t ping_state[4] = { 0, 0, 0, 0 };
-uint8_t ping_state[4] = { 0, 0, 0, 0 };
 volatile uint8_t got_ping[4] = { 0, 0, 0, 0 };
 
 SIGNAL(PCINT2_vect)
@@ -686,7 +685,9 @@ int main(void)
 
     uint32_t now = 0;
     uint32_t nows[4] = { 0, 0, 0, 0 };
+#ifndef RESET_DOESNT_SHIFT_PHASE
     uint32_t resets[4] = { 0, 0, 0, 0 };
+#endif
 
     uint32_t t = 0;
 
@@ -696,7 +697,10 @@ int main(void)
     uint32_t ping_time[4] = { 0, 0, 0, 0 };
     uint32_t divclk_time[4] = { 0, 0, 0, 0 };
     uint32_t pw_time[4] = { 0, 0, 0, 0 };
+
+#ifndef RESET_DOESNT_SHIFT_PHASE
     uint32_t reset_offset_time[4] = { 0, 0, 0, 0 };
+#endif
 
     int poll_user_input = 0;
 
@@ -727,7 +731,9 @@ int main(void)
     uint8_t pw_adc[4] = { 127, 127, 127, 127 };
 
     int8_t clock_divide_amount[4] = { 1, 1, 1, 1 };
+#ifndef RESET_DOESNT_SHIFT_PHASE
     int8_t old_clock_divide_amount[4] = { 1, 1, 1, 1 };
+#endif
 
     uint8_t cur_adc = 0;
     uint8_t next_adc = 0;
@@ -802,7 +808,10 @@ int main(void)
 
                 if (clock_divide_amount[i] <= 1) { // multiplying
                     ready_to_reset[i] = 1;
-                    if (reset_offset_time[i] == 0) { // if we're not using reset, we can reduce jitter by immediately resetting the timer on the ping
+#ifndef RESET_DOESNT_SHIFT_PHASE
+                    if (reset_offset_time[i] == 0) // if we're not using reset, we can reduce jitter by immediately resetting the timer on the ping
+#endif
+                    {
                         cli();
                         tmr_clkout[i] = 0;
                         sei();
@@ -815,7 +824,10 @@ int main(void)
                     if (num_pings_since_reset[i][j] >= cda[i][j]) {
                         if (clock_divide_amount[i] == cda[i][j]) {
                             ready_to_reset[i] = 1;
-                            if (reset_offset_time[i] == 0) {
+#ifndef RESET_DOESNT_SHIFT_PHASE
+                            if (reset_offset_time[i] == 0)
+#endif
+                            {
                                 cli();
                                 tmr_clkout[i] = 0;
                                 sei();
@@ -829,7 +841,9 @@ int main(void)
                 if (!FREERUN && (get_tmr_reset(i) > (ping_time[i] << 1))) {
                     // incoming clock has stopped
                     divclk_time[i] = 0;
+#ifndef RESET_DOESNT_SHIFT_PHASE
                     reset_offset_time[i] = 0;
+#endif
                     num_pings_since_reset[i][i] = 0;
                     num_pings_since_reset[i][1] = 0;
                     num_pings_since_reset[i][2] = 0;
@@ -855,12 +869,14 @@ int main(void)
 
         /***************** RESET *******************/
 
+#ifndef RESET_DOESNT_SHIFT_PHASE
         cli();
         resets[0] = tmr_reset[0];
         resets[1] = tmr_reset[1];
         resets[2] = tmr_reset[2];
         resets[3] = tmr_reset[3];
         sei();
+#endif
 
         for (i = 0; i < 4; i++) {
             if (RESET(i)) {
@@ -915,6 +931,7 @@ int main(void)
         if (++cur_chan >= 4)
             cur_chan = 0;
 
+#ifndef RESET_DOESNT_SHIFT_PHASE
         if (reset_offset_time[cur_chan] > 0) {
             if (clock_divide_amount[cur_chan] > 1) { // dividing
                 if (reset_offset_time[cur_chan] > divclk_time[cur_chan]) {
@@ -926,6 +943,7 @@ int main(void)
                 }
             }
         }
+#endif
 
         /******************* CLK OUT *****************16us */
         cli();
@@ -934,10 +952,12 @@ int main(void)
         nows[1] = tmr_clkout[1];
         nows[2] = tmr_clkout[2];
         nows[3] = tmr_clkout[3];
+#ifndef RESET_DOESNT_SHIFT_PHASE
         resets[0] = tmr_reset[0];
         resets[1] = tmr_reset[1];
         resets[2] = tmr_reset[2];
         resets[3] = tmr_reset[3];
+#endif
         sei();
 
         for (i = 0; i < 4; i++) {
@@ -953,7 +973,12 @@ int main(void)
                                                         ready_to_reset[i]=0;
                                                 }
                 */
-                if ((resets[i] >= reset_offset_time[i] && ready_to_reset[i]) || reset_now_flag[i]) {
+                if ((
+#ifndef RESET_DOESNT_SHIFT_PHASE
+                        resets[i] >= reset_offset_time[i] &&
+#endif
+                        ready_to_reset[i])
+                    || reset_now_flag[i]) {
                     reset_now_flag[i] = 0;
                     ready_to_reset[i] = 0;
                     reset_ck[i] = 0;
@@ -962,7 +987,11 @@ int main(void)
                 }
 
                 // do this only if we're using reset, or we're multiplying and this isn't the 0 pulse
-                if ((reset_offset_time[i] != 0) || ((clock_divide_amount[i] < 1) && (num_divclks_since_ping[i] > clock_divide_amount[i]))) {
+                if (
+#ifndef RESET_DOESNT_SHIFT_PHASE
+                    (reset_offset_time[i] != 0) ||
+#endif
+                    ((clock_divide_amount[i] < 1) && (num_divclks_since_ping[i] > clock_divide_amount[i]))) {
                     if (nows[i] >= divclk_time[i]) {
                         t = nows[i] - divclk_time[i];
                         reset_ck[i] = (uint8_t)t;
@@ -1074,15 +1103,19 @@ int main(void)
 
                     if (t >= DIV_ADC_DRIFT) {
                         divmult_adc[cur_adc] = adch;
+#ifndef RESET_DOESNT_SHIFT_PHASE
                         old_clock_divide_amount[cur_adc] = clock_divide_amount[cur_adc];
+#endif
 
                         clock_divide_amount[cur_adc] = get_clk_div_nominal(cur_adc, divmult_adc[cur_adc]);
                         divclk_time[cur_adc] = get_clk_div_time(clock_divide_amount[cur_adc], ping_time[cur_adc]);
                         // if (!output_is_high)
                         pw_time[cur_adc] = calc_pw(pw_adc[cur_adc], divclk_time[cur_adc]);
 
+#ifndef RESET_DOESNT_SHIFT_PHASE
                         if (clock_divide_amount[cur_adc] == -16 && old_clock_divide_amount[cur_adc] != -16)
                             reset_offset_time[cur_adc] = 0;
+#endif
                     }
 
                 } else { // PW
